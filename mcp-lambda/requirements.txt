@@ -1,0 +1,2 @@
+# Sem dependências externas — handler implementado com a stdlib do Python.
+# O package fica menor (~100KB), cold start mais rápido (~150ms).

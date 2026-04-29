@@ -9,6 +9,11 @@
 #
 # Not included (deliberately): autoscaling policies, alarms, dashboards, WAF.
 # Add those when you promote this from reference to production.
+#
+# Provider note (April 2026): hashicorp/aws v6.18+ ships the
+# aws_bedrockagentcore_agent_runtime resource natively. CloudFormation also
+# supports AWS::BedrockAgentCore::Runtime. Container runs on ARM64 (Graviton) —
+# build dependencies for aarch64-manylinux2014 to avoid silent import errors.
 ################################################################################
 
 terraform {
@@ -17,7 +22,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.60"
+      version = "~> 6.18"
     }
   }
 }
@@ -116,26 +121,40 @@ resource "aws_iam_role_policy" "agent_runtime" {
 }
 
 ################################################################################
-# AgentCore agent runtime
+# AgentCore agent runtime (commented for the demo — uncomment to deploy)
 #
-# NOTE: The AgentCore Terraform resource surface is evolving rapidly.
-# At time of writing, AWS supports agent runtime deployment via the
-# `bedrock-agentcore` APIs. Validate `aws_bedrockagentcore_*` resource names
-# against the current AWS provider version — the names may have shifted.
-#
-# If this resource fails to apply with "unknown resource type", fall back to
-# the AWS CLI or CloudFormation path documented in agentcore-deploy.md.
+# DEMO NOTE: keep this block commented during the talk. terraform plan is enough
+# to show the shape without spending. AgentCore Runtime is consumption-priced;
+# uncommenting and applying without a `terraform destroy` afterward will accrue
+# cost.
 ################################################################################
 
-# Placeholder: replace with actual aws_bedrockagentcore_agent_runtime resource
-# once the provider exposes it in a stable form.
-#
 # resource "aws_bedrockagentcore_agent_runtime" "this" {
-#   name              = "${local.name_prefix}-runtime"
-#   execution_role_arn = aws_iam_role.agent_runtime.arn
-#   container_uri     = var.container_image_uri
-#   tags              = local.common_tags
+#   agent_runtime_name = "${local.name_prefix}-runtime"
+#   description        = "Strands agent runtime — ${local.name_prefix}"
+#   role_arn           = aws_iam_role.agent_runtime.arn
+#
+#   agent_runtime_artifact {
+#     container_configuration {
+#       container_uri = var.container_image_uri
+#     }
+#   }
+#
+#   network_configuration {
+#     network_mode = "PUBLIC"
+#   }
+#
+#   environment_variables = {
+#     LOG_LEVEL  = "INFO"
+#     AWS_REGION = var.aws_region
+#   }
+#
+#   tags = local.common_tags
 # }
+
+################################################################################
+# Outputs
+################################################################################
 
 output "agent_runtime_role_arn" {
   description = "ARN of the IAM role the agent runtime will assume"
@@ -146,3 +165,8 @@ output "agent_runtime_log_group" {
   description = "CloudWatch Logs group name for the agent runtime"
   value       = aws_cloudwatch_log_group.agent_runtime.name
 }
+
+# output "agent_runtime_endpoint" {
+#   description = "Invocation endpoint of the AgentCore Runtime"
+#   value       = aws_bedrockagentcore_agent_runtime.this.runtime_endpoint
+# }

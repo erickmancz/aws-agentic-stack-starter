@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  MCP Server hosted in AWS Lambda with Function URL.
+  Demo for AWS Agentic Stack Chapter — Compass UOL, April 2026.
+
+# =============================================================================
+# Parameters — ajustáveis pelo `sam deploy --guided`
+# =============================================================================
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, stg, prd]
+    Description: Environment name (used as resource suffix).
+
+  AuthType:
+    Type: String
+    Default: NONE
+    AllowedValues: [NONE, AWS_IAM]
+    Description: >
+      Function URL auth type. NONE for the demo (public URL).
+      AWS_IAM for production (requires SigV4 from caller).
+
+# =============================================================================
+# Globals — defaults compartilhados
+# =============================================================================
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]      # Graviton — mais barato e mais eficiente
+    MemorySize: 512
+    Timeout: 30
+    LoggingConfig:
+      LogFormat: JSON
+      ApplicationLogLevel: INFO
+
+# =============================================================================
+# Resources
+# =============================================================================
+Resources:
+  McpServerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "field-notes-mcp-${EnvironmentName}"
+      Description: MCP server demo — exposes order lookup and company policies.
+      CodeUri: ./
+      Handler: handler.lambda_handler
+      Tags:
+        Project: aws-agentic-stack-starter
+        Environment: !Ref EnvironmentName
+        Module: mcp-lambda
+
+  # Function URL — endpoint HTTPS público (ou IAM-protected) para o Lambda.
+  # Não cobra extra além do próprio Lambda, ao contrário de API Gateway.
+  McpServerFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt McpServerFunction.Arn
+      AuthType: !Ref AuthType
+      Cors:
+        AllowOrigins: ["*"]
+        AllowMethods: [GET, POST]
+        AllowHeaders: ["Content-Type", "Mcp-Session-Id"]
+
+  # Permission necessária quando AuthType=NONE para o Function URL servir requests públicos.
+  McpServerFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Condition: IsPublic
+    Properties:
+      Action: lambda:InvokeFunctionUrl
+      FunctionName: !Ref McpServerFunction
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+# =============================================================================
+# Conditions
+# =============================================================================
+Conditions:
+  IsPublic: !Equals [!Ref AuthType, NONE]
+
+# =============================================================================
+# Outputs — usados pelo agente Strands (passa a URL via variável de ambiente)
+# =============================================================================
+Outputs:
+  McpServerUrl:
+    Description: HTTPS endpoint of the MCP server.
+    Value: !GetAtt McpServerFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub "${AWS::StackName}-McpServerUrl"
+
+  McpServerFunctionArn:
+    Description: ARN of the Lambda function.
+    Value: !GetAtt McpServerFunction.Arn
+
+  McpServerLogGroup:
+    Description: CloudWatch Logs group for the MCP server.
+    Value: !Sub "/aws/lambda/field-notes-mcp-${EnvironmentName}"
