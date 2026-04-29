@@ -1,8 +1,10 @@
 # AWS Agentic Stack Starter
 
-Companion repository for **Week 2** of [Golden Jacket Field Notes](https://github.com/erickmancz/golden-jacket-field-notes): *"The AWS Agentic Stack Explained: Strands, AgentCore, MCP, and A2A — A Practitioner's Map."*
+Companion repository for **Week 2** of [Golden Jacket Field Notes](https://medium.com/@erickmancz): *"The AWS Agentic Stack Explained: Strands, AgentCore, MCP, and A2A — A Practitioner's Map."*
 
 **Read the article:** [on Medium](https://awstip.com/the-aws-agentic-stack-explained-strands-agentcore-mcp-and-a2a-a-practitioners-map-4ef995a2e5b4)
+
+> **Branch note:** this is the `chapter-2026-04-all-aws` branch. Compared to `main`, it adds two modules (`mcp-lambda/` and `strands-with-mcp/`) that demonstrate the same agentic stack with **all components running on AWS** — no local desktop apps required. See [What's different in this branch](#whats-different-in-this-branch) below.
 
 ---
 
@@ -13,9 +15,11 @@ A hands-on starter that demonstrates each of the four layers of the AWS agentic 
 | Module | What it demonstrates |
 |--------|----------------------|
 | [`strands-hello-world/`](./strands-hello-world) | A minimal Strands agent that uses Amazon Bedrock as its model provider and exposes one tool |
-| [`agentcore-deploy/`](./agentcore-deploy) | Reference Terraform for deploying an agent runtime to AgentCore, including IAM, networking, and observability baseline |
-| [`mcp-server-sample/`](./mcp-server-sample) | A minimal MCP server written in Python that exposes two resources and one tool, consumable by any MCP-compatible client |
-| [`a2a-exchange/`](./a2a-exchange) | Two agents exchanging structured messages through the A2A protocol, demonstrating discovery, handshake, and delegation |
+| [`mcp-server-sample/`](./mcp-server-sample) | A minimal MCP server written in Python (stdio transport), consumable by any local MCP-compatible client like Claude Desktop |
+| [`mcp-lambda/`](./mcp-lambda) | The same MCP server, but hosted on **AWS Lambda Function URL** (streamable HTTP transport). Production-leaning starting point. |
+| [`strands-with-mcp/`](./strands-with-mcp) | A Strands agent that consumes the `mcp-lambda` server remotely via HTTP — runs entirely inside AWS CloudShell |
+| [`a2a-exchange/`](./a2a-exchange) | Two agents exchanging structured messages through the A2A protocol — discovery, handshake, delegation |
+| [`agentcore-deploy/`](./agentcore-deploy) | Reference Terraform for deploying an agent runtime to **Bedrock AgentCore**, including IAM, networking, and observability baseline |
 
 ## What this repository is NOT
 
@@ -23,37 +27,103 @@ A hands-on starter that demonstrates each of the four layers of the AWS agentic 
 - **Not a replacement for the AWS documentation.** Every module links back to the official docs. If AWS changes an API, the documentation is authoritative, not this repo.
 - **Not a framework.** Do not import from this repo. Read the code, adapt the patterns, write your own.
 
-> **Version note:** SDK versions move fast in this space. Every module includes `REQUIREMENTS.md` with the exact versions tested. If you encounter API drift, open an issue with your SDK version and the error — I will update.
+> **Version note:** SDK versions move fast in this space. Every module includes a `requirements.txt` with the tested versions. If you encounter API drift, open an issue with your SDK version and the error — I will update.
+
+---
+
+## Two paths to learn the stack
+
+There are two complementary paths through this repository, depending on what you want to understand first.
+
+### Path 1 — Local-first (great for understanding the protocol)
+
+Best if this is your first contact with MCP and you want to see the protocol working "raw" on your laptop:
+
+1. `strands-hello-world/` — what a tool-using agent looks like
+2. `mcp-server-sample/` — how an MCP server exposes resources and tools (stdio transport, Claude Desktop client)
+3. `a2a-exchange/` — how agents discover and delegate to each other
+4. `agentcore-deploy/` — how an agent runs in production
+
+### Path 2 — All-AWS (great for cloud-first audiences)
+
+Best if you want to see how the stack runs **fully inside AWS**, with no local desktop dependencies:
+
+1. `strands-hello-world/` — same starting point, run it from AWS CloudShell
+2. `mcp-lambda/` — deploy the MCP server to AWS Lambda via SAM
+3. `strands-with-mcp/` — run a Strands client in CloudShell that consumes the Lambda MCP via streamable HTTP
+4. `a2a-exchange/` — same A2A simulation, run from CloudShell
+5. `agentcore-deploy/` — `terraform plan` + AgentCore console tour
+
+Each module has its own README with setup, run, and teardown instructions.
+
+---
+
+## What's different in this branch
+
+The `chapter-2026-04-all-aws` branch adds the **all-AWS path** described above:
+
+| Module | Purpose |
+|---|---|
+| `mcp-lambda/` | MCP server running on AWS Lambda Function URL with streamable HTTP transport. Implements JSON-RPC 2.0 manually (no MCP library) so you can read the protocol cold. Deployed via SAM. |
+| `strands-with-mcp/` | Strands agent that connects to a remote MCP server over HTTP. Runs in AWS CloudShell — credentials and dependencies are already there. |
+
+The original `mcp-server-sample/` (local, stdio) is preserved as a learning reference. Both paths are valid; pick the one that fits your audience.
 
 ---
 
 ## Prerequisites
 
+Common to both paths:
+
 - AWS account with access to Amazon Bedrock in a supported region (tested in `us-east-1`)
-- Bedrock model access granted for Anthropic Claude models (request it in the Bedrock console if needed)
-- Python 3.11+
-- Terraform 1.7+ (only for the `agentcore-deploy` module)
-- AWS CLI configured with credentials that have permissions to invoke Bedrock and deploy infrastructure
+- Bedrock model access granted for `anthropic.claude-haiku-4-5-20251001-v1:0` (request it in the Bedrock console if needed)
+- AWS CLI v2 configured with credentials that have permissions to invoke Bedrock and deploy infrastructure
+
+Path-specific:
+
+| | Path 1 (local) | Path 2 (all-AWS) |
+|---|---|---|
+| Python 3.11+ | local | already in CloudShell |
+| Terraform 1.7+ | local (for `agentcore-deploy`) | already in CloudShell |
+| SAM CLI | not needed | already in CloudShell (for `mcp-lambda`) |
+| Claude Desktop or other MCP client | required (for `mcp-server-sample`) | not needed |
+| AWS CloudShell | optional | required (for `mcp-lambda`, `strands-with-mcp`) |
 
 ---
 
 ## Getting started
 
-Clone the repo and pick the module you want to explore first:
+### Path 1 — Local
 
 ```bash
 git clone https://github.com/erickmancz/aws-agentic-stack-starter.git
 cd aws-agentic-stack-starter
+# Follow each module's README in the order listed above
 ```
 
-If this is your first time with the agentic stack, I recommend reading the modules in this order:
+### Path 2 — All-AWS (open AWS Console → CloudShell)
 
-1. `strands-hello-world/` — understand what a tool-using agent is
-2. `mcp-server-sample/` — understand how external context reaches an agent
-3. `agentcore-deploy/` — understand how the agent runs at scale
-4. `a2a-exchange/` — understand how agents talk to each other
+```bash
+git clone -b chapter-2026-04-all-aws \
+  https://github.com/erickmancz/aws-agentic-stack-starter.git
+cd aws-agentic-stack-starter
 
-Each module has its own README with setup, run, and teardown instructions.
+# Deploy the MCP Lambda
+cd mcp-lambda
+sam build && sam deploy --guided
+
+# Capture the URL
+export MCP_SERVER_URL=$(aws cloudformation describe-stacks \
+  --stack-name field-notes-mcp-demo \
+  --query "Stacks[0].Outputs[?OutputKey=='McpServerUrl'].OutputValue" \
+  --output text)
+
+# Run the Strands agent that consumes it
+cd ../strands-with-mcp
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python agent.py
+```
 
 ---
 
