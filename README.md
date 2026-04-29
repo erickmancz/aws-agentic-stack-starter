@@ -4,8 +4,6 @@ Companion repository for **Week 2** of [Golden Jacket Field Notes](https://mediu
 
 **Read the article:** [on Medium](https://awstip.com/the-aws-agentic-stack-explained-strands-agentcore-mcp-and-a2a-a-practitioners-map-4ef995a2e5b4)
 
-> **Branch note:** this is the `chapter-2026-04-all-aws` branch. Compared to `main`, it adds two modules (`mcp-lambda/` and `strands-with-mcp/`) that demonstrate the same agentic stack with **all components running on AWS** — no local desktop apps required. See [What's different in this branch](#whats-different-in-this-branch) below.
-
 ---
 
 ## What this repository is
@@ -58,19 +56,6 @@ Each module has its own README with setup, run, and teardown instructions.
 
 ---
 
-## What's different in this branch
-
-The `chapter-2026-04-all-aws` branch adds the **all-AWS path** described above:
-
-| Module | Purpose |
-|---|---|
-| `mcp-lambda/` | MCP server running on AWS Lambda Function URL with streamable HTTP transport. Implements JSON-RPC 2.0 manually (no MCP library) so you can read the protocol cold. Deployed via SAM. |
-| `strands-with-mcp/` | Strands agent that connects to a remote MCP server over HTTP. Runs in AWS CloudShell — credentials and dependencies are already there. |
-
-The original `mcp-server-sample/` (local, stdio) is preserved as a learning reference. Both paths are valid; pick the one that fits your audience.
-
----
-
 ## Prerequisites
 
 Common to both paths:
@@ -104,8 +89,7 @@ cd aws-agentic-stack-starter
 ### Path 2 — All-AWS (open AWS Console → CloudShell)
 
 ```bash
-git clone -b chapter-2026-04-all-aws \
-  https://github.com/erickmancz/aws-agentic-stack-starter.git
+git clone https://github.com/erickmancz/aws-agentic-stack-starter.git
 cd aws-agentic-stack-starter
 
 # Deploy the MCP Lambda
