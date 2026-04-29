@@ -24,10 +24,14 @@ Parameters:
 
 # =============================================================================
 # Globals — defaults compartilhados
+#
+# Runtime note: usamos python3.11 porque o CloudShell (Amazon Linux 2023) traz
+# python3.9 por padrão e SAM build precisa do binário do runtime exato no PATH.
+# Antes de rodar `sam build`, instale: `sudo dnf install -y python3.11`.
 # =============================================================================
 Globals:
   Function:
-    Runtime: python3.12
+    Runtime: python3.11
     Architectures: [arm64]      # Graviton — mais barato e mais eficiente
     MemorySize: 512
     Timeout: 30
@@ -63,7 +67,8 @@ Resources:
         AllowMethods: [GET, POST]
         AllowHeaders: ["Content-Type", "Mcp-Session-Id"]
 
-  # Permission necessária quando AuthType=NONE para o Function URL servir requests públicos.
+  # Permission #1 — necessária para o Function URL aceitar requests anônimos.
+  # Concede lambda:InvokeFunctionUrl ao Principal '*'.
   McpServerFunctionUrlPermission:
     Type: AWS::Lambda::Permission
     Condition: IsPublic
@@ -72,6 +77,18 @@ Resources:
       FunctionName: !Ref McpServerFunction
       Principal: '*'
       FunctionUrlAuthType: NONE
+
+  # Permission #2 — necessária quando AuthType=NONE para o Lambda EXECUTAR
+  # após o Function URL ter autorizado o request. Sem essa, o endpoint
+  # responde 403 Forbidden mesmo com Permission #1 presente.
+  # AWS exige AS DUAS permissions juntas para Function URL público.
+  McpServerInvokePermission:
+    Type: AWS::Lambda::Permission
+    Condition: IsPublic
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref McpServerFunction
+      Principal: '*'
 
 # =============================================================================
 # Conditions

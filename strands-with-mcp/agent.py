@@ -54,11 +54,13 @@ def main():
 
         # Constrói o agente Strands com Bedrock como modelo provider
         # e as tools do MCP server como ferramentas disponíveis.
+        #
+        # Model ID note: o prefixo "us." indica inference profile, obrigatório
+        # para a família Claude 4.x na Bedrock (on-demand throughput não é
+        # mais suportado para modelos recentes da Anthropic).
         agent = Agent(
             model=BedrockModel(
-                # Haiku 4.5 — modelo mais barato disponível e suficiente para
-                # tool use simples como o desta demo.
-                model_id="anthropic.claude-haiku-4-5-20251001-v1:0",
+                model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
                 region_name="us-east-1",
             ),
             tools=tools,

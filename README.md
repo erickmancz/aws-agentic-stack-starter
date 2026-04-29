@@ -50,7 +50,7 @@ Best if you want to see how the stack runs **fully inside AWS**, with no local d
 2. `mcp-lambda/` — deploy the MCP server to AWS Lambda via SAM
 3. `strands-with-mcp/` — run a Strands client in CloudShell that consumes the Lambda MCP via streamable HTTP
 4. `a2a-exchange/` — same A2A simulation, run from CloudShell
-5. `agentcore-deploy/` — `terraform plan` + AgentCore console tour
+5. `agentcore-deploy/` — `terraform plan` (run locally — see CloudShell caveat below)
 
 Each module has its own README with setup, run, and teardown instructions.
 
@@ -68,11 +68,66 @@ Path-specific:
 
 | | Path 1 (local) | Path 2 (all-AWS) |
 |---|---|---|
-| Python 3.11+ | local | already in CloudShell |
-| Terraform 1.7+ | local (for `agentcore-deploy`) | already in CloudShell |
+| Python 3.11+ | local | install via `dnf` in CloudShell (see CloudShell caveat) |
+| Terraform 1.7+ | local | install via `dnf` in CloudShell (see CloudShell caveat) |
 | SAM CLI | not needed | already in CloudShell (for `mcp-lambda`) |
 | Claude Desktop or other MCP client | required (for `mcp-server-sample`) | not needed |
 | AWS CloudShell | optional | required (for `mcp-lambda`, `strands-with-mcp`) |
+
+---
+
+## CloudShell caveats (April 2026)
+
+A few things you'll hit if you try to run the all-AWS path inside CloudShell. Documenting here so you don't spend time debugging:
+
+### Python 3.11 is not pre-installed
+
+CloudShell (Amazon Linux 2023) ships with **Python 3.9 only**. Lambda doesn't support Python 3.9 since Oct/2024, and the Strands SDK requires Python 3.11+. Install before running the modules:
+
+```bash
+sudo dnf install -y python3.11 python3.11-pip python3.11-devel
+python3.11 --version
+```
+
+### Terraform is not pre-installed
+
+CloudShell does not ship Terraform. Install via HashiCorp's official repo:
+
+```bash
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+sudo dnf install -y terraform
+terraform --version
+```
+
+### Disk space is tight (1GB persistent home)
+
+The AWS provider for Terraform alone takes ~600MB. Combined with Python venvs from the other modules, `terraform init` may fail with `no space left on device`. For demos, **run Terraform locally** instead of in CloudShell. If you must use CloudShell, clean caches first:
+
+```bash
+rm -rf ~/.cache/pip
+sudo dnf clean all
+rm -rf ~/aws-agentic-stack-starter/mcp-lambda/.aws-sam
+df -h /home
+```
+
+### Bedrock requires inference profiles for newer Claude models
+
+Claude 4.x family (Haiku 4.5, Sonnet 4.5, Opus 4.x) does **not** support on-demand throughput on Bedrock. Invocations must go through a cross-region inference profile, indicated by the `us.` prefix:
+
+```python
+# ❌ This will fail with ValidationException
+model_id = "anthropic.claude-haiku-4-5-20251001-v1:0"
+
+# ✅ This works
+model_id = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+```
+
+Modules `strands-hello-world/` and `strands-with-mcp/` already use the correct prefix.
+
+### Lambda Function URL with `AuthType=NONE` requires TWO permissions
+
+If you create a Function URL with public access, AWS requires **both** `lambda:InvokeFunctionUrl` (authorizes the endpoint) and `lambda:InvokeFunction` (authorizes the execution). Missing either returns silent `403 Forbidden`. The `mcp-lambda/template.yaml` here already provisions both — but if you build your own Function URL, don't forget the second one.
 
 ---
 
@@ -89,6 +144,9 @@ cd aws-agentic-stack-starter
 ### Path 2 — All-AWS (open AWS Console → CloudShell)
 
 ```bash
+# Install missing prerequisites first (see CloudShell caveats)
+sudo dnf install -y python3.11 python3.11-pip python3.11-devel
+
 git clone https://github.com/erickmancz/aws-agentic-stack-starter.git
 cd aws-agentic-stack-starter
 

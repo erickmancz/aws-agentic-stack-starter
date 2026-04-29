@@ -23,11 +23,19 @@ Para um MCP server consumido pelo seu próprio agente, na sua conta, sem necessi
 
 ## Pré-requisitos
 
-Esses pré-requisitos já estão satisfeitos no AWS CloudShell:
+⚠️ **Atenção CloudShell — pegadinha real:**
 
-- AWS CLI v2 (CloudShell tem instalado)
-- SAM CLI (CloudShell tem instalado)
-- Python 3.11+ (CloudShell tem)
+CloudShell (Amazon Linux 2023) traz **Python 3.9** por padrão. Lambda não suporta Python 3.9 desde Out/2024 e o template usa Python 3.11. Antes de rodar `sam build`, instale:
+
+```bash
+sudo dnf install -y python3.11 python3.11-pip python3.11-devel
+python3.11 --version  # Esperado: Python 3.11.x
+```
+
+Os demais pré-requisitos já estão satisfeitos no AWS CloudShell:
+
+- AWS CLI v2 (instalado)
+- SAM CLI (instalado)
 - Permissão para criar Lambda, IAM Role, CloudWatch Logs e Function URL na sua conta
 
 ## Deploy via CloudShell
@@ -36,6 +44,9 @@ Esses pré-requisitos já estão satisfeitos no AWS CloudShell:
 # Clona o repo (no CloudShell)
 git clone https://github.com/erickmancz/aws-agentic-stack-starter.git
 cd aws-agentic-stack-starter/mcp-lambda
+
+# Garante Python 3.11 instalado (vide pré-requisitos acima)
+python3.11 --version
 
 # Build e deploy interativo
 sam build
@@ -52,6 +63,7 @@ No `--guided`, responda:
 | Parameter AuthType | `NONE` (demo) ou `AWS_IAM` (prod) |
 | Confirm changes before deploy | `n` |
 | Allow SAM CLI IAM role creation | `Y` |
+| Function URL has no authentication. Is this okay? | `Y` |
 | Disable rollback | `n` |
 | Save arguments to configuration file | `Y` |
 
@@ -70,6 +82,33 @@ Saída esperada:
 https://abc123xyz.lambda-url.us-east-1.on.aws/
 ```
 
+## Pegadinha #2 — Function URL público precisa de DUAS permissions
+
+⚠️ Este é o erro mais comum e o mais difícil de debugar. Documentando aqui pra ninguém mais perder tempo:
+
+Quando você cria um Function URL com `AuthType=NONE` (público), AWS exige **duas** resource-based policies:
+
+1. `lambda:InvokeFunctionUrl` — autoriza o ENDPOINT a aceitar requests anônimos
+2. `lambda:InvokeFunction` — autoriza o Lambda a EXECUTAR após o endpoint autorizar
+
+Se faltar a #2, todo request retorna `403 Forbidden` mesmo com a #1 presente. **A própria console AWS te avisa** se você navegar pra Configuration → Function URL após o deploy:
+
+> *"Your function URL auth type is NONE, but is missing permissions required for public access."*
+
+O `template.yaml` deste módulo já cria as duas via CloudFormation (`McpServerFunctionUrlPermission` + `McpServerInvokePermission`).
+
+Se você se deparar com um Function URL existente que retorna 403, pode adicionar manualmente:
+
+```bash
+aws lambda add-permission \
+  --function-name field-notes-mcp-dev \
+  --statement-id "AllowPublicInvokeFunction" \
+  --action "lambda:InvokeFunction" \
+  --principal "*"
+```
+
+(Nota: este comando NÃO aceita `--function-url-auth-type` — só o de `lambda:InvokeFunctionUrl` aceita esse parâmetro.)
+
 ## Testando o MCP server diretamente
 
 Antes de plugar o Strands, dá pra confirmar que o MCP server responde via `curl`:
@@ -82,11 +121,13 @@ MCP_URL=$(aws cloudformation describe-stacks \
 
 # Health check (GET)
 curl "$MCP_URL"
+# Esperado: {"status": "ok", "server": "field-notes-lambda-mcp"}
 
 # tools/list (POST com JSON-RPC)
 curl -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+# Esperado: lista com lookup_order_status e get_company_policies
 
 # tools/call
 curl -X POST "$MCP_URL" \
@@ -100,6 +141,7 @@ curl -X POST "$MCP_URL" \
       "arguments":{"order_id":"ORD-1002"}
     }
   }'
+# Esperado: "Order ORD-1002 ... in_transit"
 ```
 
 ## Sobre o trade-off de auth
@@ -114,7 +156,7 @@ A própria Anthropic recomenda OAuth 2.1 para MCP servers expostos publicamente 
 
 ## Custo estimado
 
-- **Lambda**: 1M invocações/mês grátis no free tier; demo usa ~30. Custo: $0.
+- **Lambda**: 1M invocações/mês grátis no free tier; demo usa ~50. Custo: $0.
 - **CloudWatch Logs**: 5GB/mês grátis. Demo gera ~10MB. Custo: $0.
 - **Function URL**: sem cobrança adicional além do Lambda.
 
@@ -133,7 +175,7 @@ Confirma com `Y`. Em ~30s todo o stack é removido.
 ```
 mcp-lambda/
 ├── handler.py        # Handler MCP — JSON-RPC 2.0 manual
-├── template.yaml     # SAM template — Lambda + Function URL
+├── template.yaml     # SAM template — Lambda + Function URL + 2 permissions
 ├── requirements.txt  # Vazio (só stdlib)
 └── README.md         # Este arquivo
 ```

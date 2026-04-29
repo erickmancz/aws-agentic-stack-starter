@@ -38,12 +38,16 @@ def build_agent() -> Agent:
 
     Model selection note (April 2026):
       - Default here is Claude Haiku 4.5 — cheapest model that handles tool use well.
-      - For higher-quality reasoning, swap to claude-sonnet-4-5-20250929-v1:0.
+      - The "us." prefix is the inference profile — REQUIRED for Claude 4.x family.
+        On-demand throughput is no longer supported for newer Claude models;
+        invocation must go through a cross-region inference profile.
+        See: https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
+      - For higher-quality reasoning, swap to us.anthropic.claude-sonnet-4-5-20250929-v1:0.
       - Avoid claude-3-5-sonnet-20241022-v2:0: it moved to Public Extended Access
         in Dec 2025 and now costs $6/M input · $30/M output (2x the original price).
     """
     model = BedrockModel(
-        model_id="anthropic.claude-haiku-4-5-20251001-v1:0",
+        model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         region_name="us-east-1",
     )
 
